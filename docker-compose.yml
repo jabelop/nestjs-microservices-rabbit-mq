@@ -1,0 +1,68 @@
+version: '3.2'
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    hostname: rabbitmq
+    volumes:
+      - /var/lib/rabbitmq
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    env_file:
+      - .env
+    networks:
+      - server-network
+
+  mongodb:
+    image: mongodb/mongodb-community-server:6.0-ubi8
+    environment:
+      - MONGODB_INITDB_ROOT_USERNAME=user
+      - MONGODB_INITDB_ROOT_PASSWORD=pass
+      - MONGODB_INITDB_DATABASE=microservices
+    volumes:
+      - type: bind
+        source: ./data
+        target: /data/db
+    ports:
+      - 33306:27017
+    container_name: mongodb
+    networks:
+      - server-network
+
+  auth:
+    build:
+      context: ./
+      dockerfile: ./apps/auth/Dockerfile
+    env_file:
+      - .env
+    depends_on:
+      - rabbitmq
+      - mongodb
+    volumes:
+      - .:/usr/src/app # any change to base folder should be reflected
+      - /usr/src/app/node_modules
+    command: npm run start:dev auth # overrides CMD from dockerfile
+    networks:
+      - server-network
+
+  api:
+    build:
+      context: ./
+      dockerfile: ./apps/api/Dockerfile
+    ports:
+      - '4000:3000'
+    env_file:
+      - .env
+    depends_on:
+      - rabbitmq
+      - auth
+    volumes:
+      - .:/usr/src/app # any change to base folder should be reflected
+      - /usr/src/app/node_modules
+    command: npm run start:dev api
+    networks:
+      - server-network
+
+networks:
+  server-network:
